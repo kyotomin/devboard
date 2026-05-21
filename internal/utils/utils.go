@@ -2,7 +2,6 @@ package utils
 
 import (
 	"crypto/rand"
-	"devboard/internal/utils"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -51,7 +50,6 @@ func GenerateAccessToken(userID uint) string {
 	}
 	tokenString, err := token.SignedString([]byte(os.Getenv("SIGN_SECRET")))
 	if err != nil {
-		utils.JsonResponse(w, http.StatusInternalServerError, "Failed.")
 		return ""
 	}
 

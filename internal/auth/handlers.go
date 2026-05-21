@@ -59,28 +59,27 @@ func (h *Handler) HandleAuth(w http.ResponseWriter, r *http.Request) {
 
 	req := LoginRequest{}
 	user := User{}
-	json.NewDecoder(r.Body).Decode(req)
-	if err := h.db.Where("email = $1", req.Email).First(&user); err.Error != nil {
+	json.NewDecoder(r.Body).Decode(&req)
+	if err := h.db.Where("email = ?", req.Email).First(&user); err.Error != nil {
 		if err.Error == gorm.ErrRecordNotFound {
-			http.Error(w, "Неверный email", http.StatusUnauthorized)\
+			http.Error(w, "Неверный email", http.StatusUnauthorized)
 			return
 		}
 	}
 
-	if !utils.CheckHash([]byte(req.Password), []byte(user.Hash)) {
-		http.Error(w, "Неверный пароль")
+	if !utils.CheckHash([]byte(user.Hash), []byte(req.Password)) {
+		http.Error(w, "Неверный пароль", http.StatusUnauthorized)
 		return
 	}
 
 	accessToken := utils.GenerateAccessToken(user.ID)
 	refreshToken := utils.GenerateRefreshToken()
 
-	h.db.Create(&RefreshToken {
-		UserID: user.ID,
+	h.db.Create(&RefreshToken{
+		UserID:    user.ID,
 		TokenHash: utils.Hash(refreshToken),
 		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
 	})
-
 
 	utils.JsonResponse(w, 200, "Успешная авторизация")
 	json.NewEncoder(w).Encode(user)
