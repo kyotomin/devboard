@@ -4,7 +4,6 @@ import (
 	"devboard/internal/auth"
 	"log"
 
-	_ "github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

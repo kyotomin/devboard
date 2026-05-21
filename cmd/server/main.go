@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"devboard/internal/auth"
 	"devboard/internal/storage"
 	"fmt"
 	"log"
@@ -10,15 +11,18 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 func main() {
-	mux := NewRouter()
 	dbURL := os.Getenv("DB_URL")
 	db, err := storage.InitDB(dbURL)
 	if err != nil {
 		log.Fatalf("Ошибка подключения к бд: %v", err)
 	}
+
+	mux := NewRouter(db)
 
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -38,7 +42,7 @@ func main() {
 	}
 
 	go func() {
-		fmt.Println("Сервер запущен на %v", os.Getenv("PORT"))
+		fmt.Printf("Сервер запущен на %v", os.Getenv("PORT"))
 		if err := server.ListenAndServe(); err != nil {
 			fmt.Println("Ошибка сервера.")
 		}
@@ -55,10 +59,14 @@ func main() {
 	fmt.Println("Сервер остановлен")
 }
 
-func NewRouter() http.Handler {
+func NewRouter(db *gorm.DB) http.Handler {
 	mux := http.NewServeMux()
 
-	// mux.Handle() Заготовка
+	// Создание хендлеров с инъекцией БД
+	authHandler := auth.NewHandler(db)
+
+	// Регистрация хендлеров
+	mux.HandleFunc("/api/auth/register", authHandler.HandleRegistration)
 
 	return mux
 }
