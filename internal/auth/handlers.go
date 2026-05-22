@@ -63,6 +63,9 @@ func (h *Handler) HandleAuth(w http.ResponseWriter, r *http.Request) {
 		if err.Error == gorm.ErrRecordNotFound {
 			http.Error(w, "Неверный email", http.StatusUnauthorized)
 			return
+		} else if err != nil {
+			http.Error(w, "Ошибка с авторизацией", http.StatusUnauthorized)
+			return
 		}
 	}
 
@@ -74,11 +77,16 @@ func (h *Handler) HandleAuth(w http.ResponseWriter, r *http.Request) {
 	accessToken := utils.GenerateAccessToken(user.ID)
 	refreshToken := utils.GenerateRefreshToken()
 
-	h.db.Create(&RefreshToken{
+	t := h.db.Create(&RefreshToken{
 		UserID:    user.ID,
 		TokenHash: utils.Hash(refreshToken),
 		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
 	})
+
+	if t.Error != nil {
+		http.Error(w, "Ошибка создания токена авторизации", http.StatusUnauthorized)
+		return
+	}
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
@@ -101,5 +109,4 @@ func (h *Handler) HandleAuth(w http.ResponseWriter, r *http.Request) {
 	})
 
 	utils.JsonResponse(w, 200, "Успешная авторизация")
-	json.NewEncoder(w).Encode(user)
 }
