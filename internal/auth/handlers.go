@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
 
@@ -40,7 +39,7 @@ func (h *Handler) HandleRegistration(w http.ResponseWriter, r *http.Request) {
 
 	if res := h.db.Create(&user); res.Error != nil {
 		if strings.Contains(res.Error.Error(), "duplicate key") {
-			http.Error(w, "Username или Email уже существует")
+			http.Error(w, "Username или Email уже существует", http.StatusUnauthorized)
 			return
 		}
 
@@ -79,6 +78,26 @@ func (h *Handler) HandleAuth(w http.ResponseWriter, r *http.Request) {
 		UserID:    user.ID,
 		TokenHash: utils.Hash(refreshToken),
 		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    accessToken,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   900,
+		Path:     "/",
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   30 * 24 * 60 * 60,
+		Path:     "/auth/refresh",
 	})
 
 	utils.JsonResponse(w, 200, "Успешная авторизация")

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -37,7 +38,7 @@ func CheckHash(hash, password []byte) bool {
 	return true
 }
 
-func GenerateAccessToken(userID uint) string {
+func GenerateAccessToken(userID uuid.UUID) string {
 	claims := jwt.MapClaims{
 		"sub": userID,
 		"exp": time.Now().Add(15 * time.Minute).Unix(),
