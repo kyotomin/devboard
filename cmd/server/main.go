@@ -12,10 +12,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"gorm.io/gorm"
 )
 
 func main() {
+	err := godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	db, err := storage.InitDB(dbURL)
 	if err != nil {
@@ -66,7 +69,9 @@ func NewRouter(db *gorm.DB) http.Handler {
 	authHandler := auth.NewHandler(db)
 
 	// Регистрация хендлеров
-	mux.HandleFunc("/api/auth/register", authHandler.HandleRegistration)
+	mux.HandleFunc("POST /api/auth/register", authHandler.HandleRegistration)
+	mux.HandleFunc("POST /api/auth/login", authHandler.HandleLogin)
+	mux.HandleFunc("POST /api/auth/refresh", authHandler.HandleRefresh)
 
 	return mux
 }

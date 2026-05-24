@@ -19,5 +19,10 @@ func InitDB(dbURL string) (*gorm.DB, error) {
 		log.Fatal("Ошибка создания таблицы пользователей")
 	}
 
+	err = db.AutoMigrate(&auth.RefreshToken{})
+	if err != nil {
+		log.Fatal("Ошибка создания таблицы пользователей")
+	}
+
 	return db, err
 }

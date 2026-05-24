@@ -31,7 +31,7 @@ func Hash(origin string) string {
 }
 
 func CheckHash(hash, password []byte) bool {
-	if err := bcrypt.CompareHashAndPassword(password, hash); err != nil {
+	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
 		return false
 	}
 
