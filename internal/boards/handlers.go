@@ -73,3 +73,40 @@ func (h *Handler) HandleCreateColunm(w http.ResponseWriter, r *http.Request) {
 
 	utils.JsonResponse(w, 200, "Колонка создана")
 }
+
+func (h *Handler) HandleCreateCard(w http.ResponseWriter, r *http.Request) {
+	columnID := r.PathValue("columnID")
+	boardID := r.PathValue("boardID")
+	asigneeID := r.Context().Value("userID").(*uuid.UUID)
+
+	column := &Column{}
+	if err := h.db.Where("id = ? and board_id = ?", columnID, boardID).First(&column).Error; err != nil {
+		utils.JsonResponse(w, 404, "Колонка не найдена")
+		return
+	}
+
+	req := CreateCardRequest{}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	var maxPos int
+	h.db.Model(&Card{}).
+		Where("column_id = ?", boardID).
+		Select("COALESCE(MAX(position), 0)").
+		Scan(&maxPos)
+
+	card := &Card{
+		ColumnID:    column.ID,
+		Title:       req.Title,
+		Attachments: make([]Attachment, 0),
+		CreatedAt:   time.Now(),
+		AssigneeID:  asigneeID,
+		Position:    maxPos,
+	}
+
+	if err := h.db.Create(&card).Error; err != nil {
+		utils.JsonResponse(w, 500, "Ошибка создания карточки")
+		return
+	}
+
+	utils.JsonResponse(w, 200, "Карточка создана")
+}

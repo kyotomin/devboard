@@ -38,7 +38,7 @@ type Card struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	AssigneeID  *uuid.UUID `gorm:"type:uuid"`
-	Position    int
+	Position    int        `gorm:"default:0"`
 }
 
 type Board struct {
@@ -58,6 +58,10 @@ type CreateBoardRequest struct {
 
 type CreateColumnRequest struct {
 	Name string `json:"name"`
+}
+
+type CreateCardRequest struct {
+	Title string `json:"title"`
 }
 
 type Attachment struct {
