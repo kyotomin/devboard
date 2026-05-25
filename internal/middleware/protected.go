@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 func ValidateCookie(next http.HandlerFunc) http.HandlerFunc {
@@ -25,7 +26,12 @@ func ValidateCookie(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		claims := token.Claims.(jwt.MapClaims)
-		ctx := context.WithValue(r.Context(), "userID", claims["sub"])
+		userID, err := uuid.Parse(claims["sub"].(string))
+		if err != nil {
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+		ctx := context.WithValue(r.Context(), "userID", userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

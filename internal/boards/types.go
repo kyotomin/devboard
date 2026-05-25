@@ -47,6 +47,7 @@ type Board struct {
 	Title        string `gorm:"unique;not null"`
 	Description  string
 	Contributors []BoardContributor `gorm:"foreignKey:BoardID"`
+	Columns      []Column           `gorm:"foreignKey:BoardID"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

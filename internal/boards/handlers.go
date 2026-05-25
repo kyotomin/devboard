@@ -1,22 +1,30 @@
 package boards
 
 import (
+	"context"
 	"devboard/internal/utils"
 	"encoding/json"
+	"fmt"
+	"log"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type Handler struct {
 	db *gorm.DB
+	r2 *s3.Client
 }
 
-func NewHandler(db *gorm.DB) *Handler {
-	return &Handler{db: db}
+func NewHandler(db *gorm.DB, r2 *s3.Client) *Handler {
+	return &Handler{db: db, r2: r2}
 }
 
 func (h *Handler) HandleCreateBoard(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +85,7 @@ func (h *Handler) HandleCreateColunm(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleCreateCard(w http.ResponseWriter, r *http.Request) {
 	columnID := r.PathValue("columnID")
 	boardID := r.PathValue("boardID")
-	asigneeID := r.Context().Value("userID").(*uuid.UUID)
+	asigneeID := r.Context().Value("userID").(uuid.UUID)
 
 	column := &Column{}
 	if err := h.db.Where("id = ? and board_id = ?", columnID, boardID).First(&column).Error; err != nil {
@@ -99,7 +107,7 @@ func (h *Handler) HandleCreateCard(w http.ResponseWriter, r *http.Request) {
 		Title:       req.Title,
 		Attachments: make([]Attachment, 0),
 		CreatedAt:   time.Now(),
-		AssigneeID:  asigneeID,
+		AssigneeID:  &asigneeID,
 		Position:    maxPos,
 	}
 
@@ -109,4 +117,74 @@ func (h *Handler) HandleCreateCard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.JsonResponse(w, 200, "Карточка создана")
+}
+
+func (h *Handler) UploadNewAttachment(file multipart.File, header *multipart.FileHeader, cardID uuid.UUID) (*Attachment, error) {
+	key := fmt.Sprintf("attachments/%s/%s", cardID, header.Filename)
+
+	_, err := h.r2.PutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket:        aws.String(os.Getenv("R2_BUCKET")),
+		Key:           aws.String(key),
+		Body:          file,
+		ContentLength: aws.Int64(header.Size),
+		ContentType:   aws.String(header.Header.Get("Content-Type")),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	url := fmt.Sprintf("%s/%s", os.Getenv("R2_PUBLIC_URL"), key)
+
+	return &Attachment{
+		CardID:    cardID,
+		FileURL:   url,
+		FileName:  header.Filename,
+		CreatedAt: time.Now(),
+	}, nil
+}
+
+func (h *Handler) HandleUploadAttachment(w http.ResponseWriter, r *http.Request) {
+	cardId := r.PathValue("cardID")
+
+	r.ParseMultipartForm(10 << 20)
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		utils.JsonResponse(w, 500, "Ошибка получения файла")
+		return
+	}
+
+	attachment, err := h.UploadNewAttachment(file, header, uuid.MustParse(cardId))
+	if err != nil {
+		log.Printf("R2 upload error: %v", err)
+		utils.JsonResponse(w, 500, "Ошибка загрузки файла")
+		return
+	}
+
+	if err := h.db.Create(&attachment).Error; err != nil {
+		utils.JsonResponse(w, 500, "Ошибка сохранения")
+		return
+	}
+
+	utils.JsonResponse(w, 201, "Файл загружен")
+}
+
+func (h *Handler) HandleGetBoard(w http.ResponseWriter, r *http.Request) {
+	boardID := r.PathValue("boardID")
+
+	board := &Board{}
+	if err := h.db.
+		Preload("Columns", func(db *gorm.DB) *gorm.DB {
+			return db.Order("position ASC")
+		}).
+		Preload("Columns.Cards", func(db *gorm.DB) *gorm.DB {
+			return db.Order("position ASC")
+		}).
+		Preload("Columns.Cards.Attachments").
+		First(&board, "id = ?", boardID).Error; err != nil {
+		utils.JsonResponse(w, 404, "Борда не найдена")
+		return
+	}
+
+	json.NewEncoder(w).Encode(board)
 }

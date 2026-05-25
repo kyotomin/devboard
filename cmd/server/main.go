@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"devboard/internal/auth"
+	"devboard/internal/boards"
+	"devboard/internal/middleware"
 	"devboard/internal/storage"
 	"fmt"
 	"log"
@@ -12,20 +14,26 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/joho/godotenv"
 
 	"gorm.io/gorm"
 )
 
 func main() {
-	err := godotenv.Load()
+	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	db, err := storage.InitDB(dbURL)
 	if err != nil {
 		log.Fatalf("Ошибка подключения к бд: %v", err)
 	}
 
-	mux := NewRouter(db)
+	r2, err := storage.InitR2()
+	if err != nil {
+		log.Fatal("Error while loading r2 storage")
+	}
+
+	mux := NewRouter(db, r2)
 
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -62,16 +70,24 @@ func main() {
 	fmt.Println("Сервер остановлен")
 }
 
-func NewRouter(db *gorm.DB) http.Handler {
+func NewRouter(db *gorm.DB, r2 *s3.Client) http.Handler {
 	mux := http.NewServeMux()
 
 	// Создание хендлеров с инъекцией БД
 	authHandler := auth.NewHandler(db)
+	boardHandler := boards.NewHandler(db, r2)
 
-	// Регистрация хендлеров
+	// Регистрация хендлеров авторизации
 	mux.HandleFunc("POST /api/auth/register", authHandler.HandleRegistration)
 	mux.HandleFunc("POST /api/auth/login", authHandler.HandleLogin)
 	mux.HandleFunc("POST /api/auth/refresh", authHandler.HandleRefresh)
+
+	// Регистрация хендлеров доски
+	mux.HandleFunc("POST /api/boards/", middleware.ValidateCookie(boardHandler.HandleCreateBoard))
+	mux.HandleFunc("GET /api/boards/{boardID}", middleware.ValidateCookie(boardHandler.HandleGetBoard))
+	mux.HandleFunc("POST /api/boards/{boardID}/columns", middleware.ValidateCookie(boardHandler.HandleCreateColunm))
+	mux.HandleFunc("POST /api/boards/{boardID}/columns/{columnID}/cards", middleware.ValidateCookie(boardHandler.HandleCreateCard))
+	mux.HandleFunc("POST /api/boards/{boardID}/columns/{columnID}/cards/{cardID}/attachments", middleware.ValidateCookie(boardHandler.HandleUploadAttachment))
 
 	return mux
 }
