@@ -2,6 +2,7 @@ package boards
 
 import (
 	"context"
+	"devboard/internal/auth"
 	"devboard/internal/utils"
 	"encoding/json"
 	"fmt"
@@ -187,4 +188,34 @@ func (h *Handler) HandleGetBoard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(board)
+}
+
+func (h *Handler) HandleAddContributor(w http.ResponseWriter, r *http.Request) {
+	boardID := r.PathValue("boardID")
+
+	req := &AddContributorRequest{}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	user := &auth.User{}
+	if err := h.db.Where("username = ?", req.Username).First(&user).Error; err != nil {
+		utils.JsonResponse(w, 404, "Юзер не найден")
+		return
+	}
+
+	contributor := &BoardContributor{
+		BoardID: uuid.MustParse(boardID),
+		UserID:  user.ID,
+		Role:    req.Role,
+	}
+
+	if err := h.db.Create(&contributor).Error; err != nil {
+		if strings.Contains(err.Error(), "duplicate key") {
+			utils.JsonResponse(w, 409, "Юзер уже в борде")
+			return
+		}
+		utils.JsonResponse(w, 500, "Ошибка добавления")
+		return
+	}
+
+	utils.JsonResponse(w, 200, "Контрибьютор добавлен")
 }

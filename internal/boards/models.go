@@ -52,19 +52,6 @@ type Board struct {
 	UpdatedAt    time.Time
 }
 
-type CreateBoardRequest struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-}
-
-type CreateColumnRequest struct {
-	Name string `json:"name"`
-}
-
-type CreateCardRequest struct {
-	Title string `json:"title"`
-}
-
 type Attachment struct {
 	ID        uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	CardID    uuid.UUID `gorm:"type:uuid;not null;index"` // Индекс для быстрого поиска
