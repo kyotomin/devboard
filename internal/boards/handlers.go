@@ -219,3 +219,64 @@ func (h *Handler) HandleAddContributor(w http.ResponseWriter, r *http.Request) {
 
 	utils.JsonResponse(w, 200, "Контрибьютор добавлен")
 }
+
+func (h *Handler) HandleDeleteContributor(w http.ResponseWriter, r http.Request) {
+	boardID := r.PathValue("boardID")
+
+	req := &DeleteContributorRequest{}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	res := h.db.Delete(&BoardContributor{}, "board_id = ? and user_id = ?",
+		uuid.MustParse(boardID), uuid.MustParse(req.UserID.String()))
+
+	if res.Error != nil {
+		utils.JsonResponse(w, 500, "Ошибка удаления")
+	}
+
+	if res.RowsAffected == 0 {
+		utils.JsonResponse(w, 404, "Контрибьютор не найден")
+		return
+	}
+
+	utils.JsonResponse(w, 200, "Контрибьютор удалён")
+}
+
+func (h *Handler) HandleGetAllContributors(w http.ResponseWriter, r *http.Request) {
+	boardID := r.PathValue("boardID")
+
+	var contributors []BoardContributor
+	res := h.db.Preload("board_id = ?", uuid.MustParse(boardID)).Find(&contributors)
+
+	if res.Error != nil {
+		utils.JsonResponse(w, 500, "Ошибка получения")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	json.NewEncoder(w).Encode(contributors)
+}
+
+func (h *Handler) HandleMoveCard(w http.ResponseWriter, r *http.Request) {
+	cardID := r.PathValue("cardID")
+	req := &MoveCardRequest{}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		tx.Model(&Card{}).Where("column_id = ? and position = ?", req.ColumnID, req.Position).
+			UpdateColumn("position", gorm.Expr("position + 1"))
+
+		return tx.Model(&Card{}).Where("id = ?", cardID).
+			Updates(map[string]any{
+				"column_id": req.ColumnID,
+				"position":  req.Position,
+			}).Error
+	})
+
+	if err != nil {
+		utils.JsonResponse(w, 500, "Ошибка перемещения")
+		return
+	}
+
+	utils.JsonResponse(w, 200, "Карточка перемещена")
+}
