@@ -28,3 +28,8 @@ type MoveCardRequest struct {
 	ColumnID uuid.UUID `json:"column_id"`
 	Position int       `json:"position"`
 }
+
+type GetBoardTitle struct {
+	ID    uuid.UUID `json:"id"`
+	Title string    `json:"title"`
+}

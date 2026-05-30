@@ -263,7 +263,7 @@ func (h *Handler) HandleMoveCard(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&req)
 
 	err := h.db.Transaction(func(tx *gorm.DB) error {
-		tx.Model(&Card{}).Where("column_id = ? and position = ?", req.ColumnID, req.Position).
+		tx.Model(&Card{}).Where("column_id = ? and position >= ?", req.ColumnID, req.Position).
 			UpdateColumn("position", gorm.Expr("position + 1"))
 
 		return tx.Model(&Card{}).Where("id = ?", cardID).
@@ -279,4 +279,24 @@ func (h *Handler) HandleMoveCard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.JsonResponse(w, 200, "Карточка перемещена")
+}
+
+func (h *Handler) HandleGetAllBoards(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("userID").(uuid.UUID)
+
+	var boards []GetBoardTitle
+	err := h.db.Model(&Board{}).
+		Joins("JOIN board_contributors ON board_contributors.board_id = boards.id").
+		Where("board_contributors.user_id = ? OR boards.owner_id = ?", userID, userID).
+		Distinct("boards.id", "boards.title").
+		Find(&boards).Error
+
+	if err != nil {
+		utils.JsonResponse(w, 500, "Доски не найдены")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	json.NewEncoder(w).Encode(boards)
 }
